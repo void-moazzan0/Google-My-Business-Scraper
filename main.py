@@ -28,7 +28,7 @@ def extract_emails(url):
     EMAIL_REGEX = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
     emails = []
 
-    for element in soup.select('a, span'):
+    for element in soup.select('a, span, h1, h2, h3, p, div'):
         emails.extend(EMAIL_REGEX.findall(element.text))
 
     return emails[0] if emails else None
