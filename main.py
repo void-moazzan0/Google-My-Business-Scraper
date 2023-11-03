@@ -22,7 +22,7 @@ def extract_emails(url):
     }
     response = requests.get(url, headers=headers)
 
-    parse_only = SoupStrainer(['a', 'span', 'h1', 'h2', 'h3', 'p'])
+    parse_only = SoupStrainer(['a', 'span', 'h1', 'h2', 'h3', 'p','div'])
     soup = BeautifulSoup(response.content, 'html.parser', parse_only=parse_only)
 
     EMAIL_REGEX = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
@@ -261,7 +261,7 @@ if __name__ == "__main__":
     if args.total:
         total = args.total
     else:
-        total = 100
+        total = 10
 
     start_time = time.time()
     main()
