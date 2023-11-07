@@ -6,12 +6,15 @@ import pandas as pd
 import argparse
 import requests
 import re
+from selenium.webdriver.chrome.options import Options
+import os
 import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from datetime import datetime
 
 from     bs4 import BeautifulSoup, SoupStrainer
 from tkinter import messagebox
@@ -103,11 +106,14 @@ class BusinessList:
         Args:
             filename (str): filename
         """
+
         self.dataframe().to_csv(f"{filename}.csv", index=False)
 
+business_list = BusinessList()
 def update_progress_label(text):
     progress_label.config(text=text)
     root.update_idletasks()
+
 
 def selenium_scraper(search_for, total):
     driver = webdriver.Chrome()  # Ensure you have the chromedriver executable in your PATH
@@ -145,7 +151,7 @@ def selenium_scraper(search_for, total):
     address_xpath = '//button[@data-item-id="address"]//div[contains(@class, "fontBodyMedium")]'
     website_xpath = '//a[@data-item-id="authority"]//div[contains(@class, "fontBodyMedium")]'
     phone_number_xpath = '//button[contains(@data-item-id, "phone:tel:")]//div[contains(@class, "fontBodyMedium")]'
-    business_list = BusinessList()
+
     # Scraping
     rand_count=0
     for listing in listings:
@@ -180,24 +186,12 @@ def selenium_scraper(search_for, total):
         except:
             print('error')
             continue
-
+    uid=len(os.listdir())
     # Save to files, these methods need to be implemented according to your needs
-    business_list.save_to_excel("google_maps_data")
-    business_list.save_to_csv("google_maps_data")
+    update_progress_label(f'File: google_maps_data-{uid}')
+    business_list.save_to_csv(f'google_maps_data-{uid}')
 
     driver.quit()
-
-
-def open_file_browser():
-    # Open the file browser at the user's home directory
-    file_path = filedialog.askdirectory(initialdir='~', title='Select Folder')
-    if file_path:
-        # Here you can handle the file saving process using the file_path
-        print(f'The file will be saved to: {file_path}')
-    else:
-        print('No file selected.')
-
-    return file_path if file_path else './'
 
 
 def start_scraping(search_for, total, scrape_button, quit_button):
@@ -205,7 +199,6 @@ def start_scraping(search_for, total, scrape_button, quit_button):
         selenium_scraper(search_for,total)
         print(f"Scraping started with search_for: {search_for} and total: {total}")
         # Dummy wait time to simulate scraping
-        browse_button.config(state=tk.NORMAL)
         root.after(5000, lambda: messagebox.showinfo("Complete", "Scraping complete!"))
     except Exception as e:
         messagebox.showerror("Error", f"An error occurred: {e}")
@@ -243,8 +236,6 @@ scrape_button.pack()
 
 progress_label = tk.Label(root, text="Progress: 0%")
 progress_label.pack()
-browse_button = tk.Button(root, text='Save File', command=open_file_browser,state=tk.DISABLED)
-browse_button.pack()
 # Quit button
 quit_button = tk.Button(root, text="Quit", command=root.destroy)
 quit_button.pack()
