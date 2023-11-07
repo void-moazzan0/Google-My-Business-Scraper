@@ -10,6 +10,12 @@ import re
 import time
 
 from bs4 import BeautifulSoup, SoupStrainer
+from tkinter import messagebox
+import tkinter as tk
+from threading import Thread
+
+
+
 
 session = requests.Session()
 
@@ -31,7 +37,7 @@ def extract_emails(url):
     for element in soup.select('a, span, h1, h2, h3, p, div'):
         emails.extend(EMAIL_REGEX.findall(element.text))
 
-    return emails[0] if emails else None
+    return emails[0] if emails else 'None'
 
 def get_links(url):
 
@@ -47,49 +53,6 @@ def get_links(url):
 
 
 
-
-def email_finder():
-    df = pd.read_csv('google_maps_data.csv')
-
-    # Extract the 'website' column
-    websites = df['website']
-
-    email = []
-    # Print the 'website' column
-    for url in websites:
-        print(url)
-        domain=f"https://{url}"
-        home_page_links = get_links(domain)
-
-        # Find the contact page link
-        contact_page_link = None
-        for link in home_page_links:
-            if 'contact' in link.lower():
-                contact_page_link = link
-                break
-
-        # Scrape email addresses from the contact page, if it exists
-        if contact_page_link:
-            contact_page_url = f'{domain}/{contact_page_link}'
-            contact_page_emails = extract_emails(contact_page_url)
-        else:
-            contact_page_emails = None
-
-        # Scrape email addresses from the rest of the domain
-        domain_emails = set()
-        home_email=extract_emails(domain)
-        # for link in tqdm(home_page_links, desc='Scraping pages'):
-        #     link_url = urljoin(domain, link)
-        #     if urlparse(link_url).netloc == urlparse(domain).netloc:
-        #         link_emails = extract_emails(link_url)
-        #         domain_emails.update(link_emails)
-
-        if contact_page_emails is not None:
-            return contact_page_emails
-        elif home_email is not None:
-            return home_email
-        else:
-            return "None"
 
 @dataclass
 class Business:
@@ -135,10 +98,13 @@ class BusinessList:
         """
         self.dataframe().to_csv(f"{filename}.csv", index=False)
 
+def update_progress_label(text):
+    progress_label.config(text=text)
+    root.update_idletasks()
 
-def main():
+def scraper(search_for, total):
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
+        browser = p.chromium.launch(headless=True)
         page = browser.new_page()
 
         page.goto(f"https://www.google.com/maps/search/{search_for.replace(' ','+')}", timeout=60000)
@@ -194,7 +160,7 @@ def main():
                     )
 
         business_list = BusinessList()
-
+        rand_count=0
         # scraping
         for listing in listings:
             listing.click()
@@ -211,11 +177,11 @@ def main():
             if listing.locator(name_xpath).count() > 0:
                 business.name = listing.locator(name_xpath).inner_text()
             else:
-                business.name = ""
+                business.name = "None"
             if page.locator(address_xpath).count() > 0:
                 business.address = page.locator(address_xpath).inner_text()
             else:
-                business.address = ""
+                business.address = "None"
             if page.locator(website_xpath).count() > 0:
                 business.website = page.locator(website_xpath).inner_text()
 
@@ -224,11 +190,11 @@ def main():
                 except:
                     business.mail='None'
             else:
-                business.website = ""
+                business.website = "None"
             if page.locator(phone_number_xpath).count() > 0:
                 business.phone_number = page.locator(phone_number_xpath).inner_text()
             else:
-                business.phone_number = ""
+                business.phone_number = "None"
             if listing.locator(reviews_span_xpath).count() > 0:
                 business.reviews_average = 1
                 business.reviews_count = 1
@@ -237,6 +203,8 @@ def main():
                 business.reviews_count = ""
 
             business_list.business_list.append(business)
+            update_progress_label(str(rand_count))
+            rand_count=rand_count+1
         # saving to both excel and csv just to showcase the features.
         business_list.save_to_excel("google_maps_data")
         business_list.save_to_csv("google_maps_data")
@@ -244,27 +212,50 @@ def main():
         browser.close()
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-s", "--search", type=str)
-    parser.add_argument("-t", "--total", type=int)
-    args = parser.parse_args()
+def start_scraping(search_for, total, scrape_button, quit_button):
+    try:
+        scraper(search_for,total)
+        print(f"Scraping started with search_for: {search_for} and total: {total}")
+        # Dummy wait time to simulate scraping
+        root.after(5000, lambda: messagebox.showinfo("Complete", "Scraping complete!"))
+    except Exception as e:
+        messagebox.showerror("Error", f"An error occurred: {e}")
+    finally:
+        # Re-enable the scrape and quit buttons after scraping is done or if an error occurs
+        scrape_button.config(state=tk.NORMAL)
+        quit_button.config(state=tk.NORMAL)
 
-    if args.search:
-        search_for = args.search
-    else:
-        # in case no arguments passed
-        # the scraper will search by defaukt for:
-        search_for = "Roofing Companies In Austin"
+# Function to run the scraping in a separate thread
+def scrape_thread(search_for, total, scrape_button, quit_button):
+    scrape_button.config(state=tk.DISABLED)  # Disable the button to prevent multiple clicks
 
-    # total number of products to scrape. Default is 10
-    if args.total:
-        total = args.total
-    else:
-        total = 10
+    thread = Thread(target=start_scraping, args=(search_for, total, scrape_button, quit_button))
+    thread.start()
 
-    start_time = time.time()
-    main()
-    end_time = time.time()
-    print(end_time-start_time)
 
+# Main GUI code
+root = tk.Tk()
+root.title("Google Maps Scraper")
+root.geometry("500x500")
+
+# Search term entry
+tk.Label(root, text="Search for:").pack()
+search_entry = tk.Entry(root)
+search_entry.pack()
+
+# Total results entry
+tk.Label(root, text="Total results:").pack()
+total_entry = tk.Entry(root)
+total_entry.pack()
+
+# Scrape button
+scrape_button = tk.Button(root, text="Scrape", command=lambda: scrape_thread(search_entry.get(), int(total_entry.get()), scrape_button, quit_button))
+scrape_button.pack()
+
+progress_label = tk.Label(root, text="Progress: 0%")
+progress_label.pack()
+# Quit button
+quit_button = tk.Button(root, text="Quit", command=root.destroy)
+quit_button.pack()
+
+root.mainloop()
